@@ -1,155 +1,80 @@
-#  Petrodollar & De-dollarization Analysis
+# Petrodollar & De-dollarization — ML Deployment
 
-##  Overview
+This project separates **research/training** from **production inference**.
 
-This project explores the relationship between the global **Petrodollar System**, the growing trend of **de-dollarization**, and crude oil markets. It combines multiple economic and financial datasets to analyze historical trends, engineer predictive features, build a De-dollarization Index using Principal Component Analysis (PCA), and forecast Brent crude oil prices using machine learning models.
+### Architecture
 
----
+`5 CSV sources -> preprocessing -> PCA index -> features -> chronological validation -> Trend + Random Forest residual models -> model_bundle.joblib -> Streamlit inference app`
 
-##  Objectives
+The Streamlit app loads the persisted model bundle. It does **not** retrain the ML models when a user opens the app.
 
-* Analyze the evolution of the Petrodollar system.
-* Study global de-dollarization trends.
-* Examine the relationship between oil prices and currency movements.
-* Build a De-dollarization Index using PCA.
-* Forecast Brent crude oil prices using machine learning.
+## Files
 
----
+- `train_model.py` — trains and persists the production models.
+- `app_ml.py` — deployed Streamlit inference application.
+- `app_original.py` — original exploratory Streamlit application for reference.
+- `requirements.txt` — Python dependencies.
+- `Dockerfile` — container deployment option.
+- `DEPLOYMENT_CHECKLIST.md` — deployment and retraining checklist.
+- `data/` — place the five source CSVs here before training.
+- `models/` — generated model bundle and validation metrics.
 
-##  Dataset
+## Required source data
 
-**Dataset**                                                                                                                                      |
- **oil_production_trade.csv** 
-Historical oil production, exports, imports, consumption, and global trade statistics.                                             
- **opec_quotas_events.csv**    
-OPEC production quotas and significant geopolitical or economic events affecting oil markets.                                      
- **recycling_swf.csv**      
+The trainer expects the same five files used by the supplied notebook:
 
-Petrodollar recycling, sovereign wealth fund investments, and oil-export revenue flows.                                            
- **dedollarization.csv**    
- Indicators related to reserve currency composition, BRICS initiatives, bilateral trade settlements, and de-dollarization.          
- **daily_prices_fx.csv**      
-Daily Brent and WTI crude oil prices, exchange rates, and the US Dollar Index (DXY) used for time-series analysis and forecasting. 
+- `petrodollar_1_oil_production_trade.csv`
+- `petrodollar_2_opec_quotas_events.csv`
+- `petrodollar_3_recycling_swf.csv`
+- `petrodollar_4_dedollarization.csv`
+- `petrodollar_5_daily_prices_fx.csv`
 
----
+## Train the production model
 
-##  Project Workflow
+```bash
+pip install -r requirements.txt
+python train_model.py
+```
 
-1. Data Collection and Integration
-2. Data Cleaning and Preprocessing
-3. Exploratory Data Analysis (EDA)
-4. Feature Engineering
-5. Principal Component Analysis (PCA)
-6. Machine Learning Model Development
-7. Model Evaluation and Prediction
+The trainer evaluates the Trend + Random Forest residual model on a chronological holdout for 6, 12, 24 and 36 months, then refits the selected model on all available historical rows and saves:
 
----
+```text
+models/model_bundle.joblib
+models/validation_metrics.csv
+```
 
-## Exploratory Data Analysis
+The bundle includes the PCA transformation, index direction, feature list, four horizon-specific Random Forest models, latest feature state, historical index, validation metadata and residual uncertainty estimates.
 
-The analysis includes:
+## Run locally
 
-* Brent and WTI crude oil price trends
-* US Dollar Index (DXY) analysis
-* Oil production and consumption trends
-* OPEC production analysis
-* Petroyuan trading trends
-* Reserve currency composition
-* Correlation analysis
-* Time-series visualization
+```bash
+streamlit run app_ml.py
+```
 
----
+## Deploy to Streamlit Community Cloud
 
-## ⚙️ Feature Engineering
+1. Push the project to GitHub.
+2. Make sure `models/model_bundle.joblib` and `models/validation_metrics.csv` are in the repository.
+3. Select `app_ml.py` as the Streamlit entry point.
+4. Deploy.
 
-The following features were created to improve model performance:
+The source CSV files are not required by the inference app after the model bundle has been trained. Keep them private or outside the deployment repository if appropriate.
 
-* Lag Features
-* Rolling Mean
-* Rolling Standard Deviation
-* Exponential Moving Average (EMA)
-* Momentum Indicators
-* Percentage Change
-* Revenue per Barrel
+## Docker
 
----
+```bash
+docker build -t petrodollar-ml .
+docker run -p 8501:8501 petrodollar-ml
+```
 
-## De-dollarization Index
+Then open `http://localhost:8501`.
 
-A composite **De-dollarization Index** was developed using **Principal Component Analysis (PCA)** by combining multiple economic indicators into a single measure representing the progress of de-dollarization.
+## Important notebook/modeling note
 
----
+The original notebook is best retained as the research and EDA record. Its original PCA workflow fits the transformation before the chronological forecasting split. For deployment validation, `train_model.py` avoids that leakage by fitting PCA/scaling on the training period and transforming later observations with the fitted objects. After validation, the production artifacts are refit using all available historical data.
 
-##  Machine Learning Models
+Therefore **you do not need to rewrite the notebook to deploy the app**. However, for a stronger portfolio submission, add a short “Deployment & Leakage Control” section to the notebook explaining that the production trainer uses a leakage-safe chronological validation procedure and persists the trained artifacts.
 
-The following models were implemented for forecasting Brent crude oil prices:
+## Data quality
 
-* Linear Regression
-* Random Forest Regressor
-* XGBoost Regressor
-* **Naive Model (Baseline Forecast using last observed value)**
-* **Trend Extrapolation Model (Linear trend-based forecasting)**
-* **Random Forest Regressor (Enhanced tuned version for non-linear relationships)**
-
----
-
-##  Model Evaluation
-
-All models were evaluated using:
-
-* R² Score
-* Mean Absolute Error (MAE)
-* Root Mean Squared Error (RMSE)
-
-The inclusion of baseline and trend-based models provides a strong benchmark for comparing machine learning performance against simple forecasting approaches.
-
----
-
-## 🛠️ Technologies Used
-
-* Python
-* Pandas
-* NumPy
-* Matplotlib
-* Scikit-learn
-* XGBoost
-* Jupyter Notebook
-
-
-
----
-
-##  Future Improvements
-
-* Integrate live financial and commodity market APIs.
-* Include geopolitical risk indicators.
-* Add news sentiment analysis using NLP.
-* Develop LSTM and Transformer-based forecasting models.
-* Build an interactive Streamlit application.
-* Create a Power BI dashboard for business users.
-* Automate periodic data refresh and model retraining.
-
-#
-
----
-
-##  Skills Demonstrated
-
-* Data Cleaning & Preprocessing
-* Data Integration
-* Exploratory Data Analysis
-* Time-Series Analysis
-* Feature Engineering
-* Principal Component Analysis (PCA)
-* Machine Learning
-* Predictive Analytics
-* Financial Data Analysis
-* Data Visualization
-
----
-
-##  Author
-
-**Francis Infant**
-
-
+The supplied project materials indicate that some source figures may be synthetic-filled. This deployment should therefore be described as a **portfolio/demo forecasting system** unless and until the source data is replaced with verified official data and the model is retrained and revalidated.
