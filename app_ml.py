@@ -347,13 +347,11 @@ with executive_tab:
     with right:
         st.markdown('<div class="section-title">Scenario breakdown</div>', unsafe_allow_html=True)
         f, t, r, u, fd = forecasts[selected_horizon]
-        st.markdown('<div class="panel">', unsafe_allow_html=True)
         st.metric("Scenario value", f"{f:.2f}", f"{f-latest_index:+.2f} vs latest")
         st.metric("Trend component", f"{t:.2f}")
         st.metric("ML residual", f"{r:+.2f}")
         st.metric("Endpoint uncertainty", f"±{u:.2f}")
         st.markdown(f'<span class="badge badge-blue">Forecast date • {fd:%b %Y}</span>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="section-title">Key signals</div>', unsafe_allow_html=True)
     insight_cols = st.columns(4)
@@ -383,9 +381,7 @@ with forecast_tab:
     c.metric("ML residual", f"{r:+.2f}")
     d.metric("Endpoint uncertainty", f"±{u:.2f}")
 
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
     render_history_forecast_chart(history_view, selected_horizon)
-    st.markdown('</div>', unsafe_allow_html=True)
 
     c1, c2 = st.columns(2)
     with c1:
