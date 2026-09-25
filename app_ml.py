@@ -9,7 +9,7 @@ METRICS_PATH = "models/validation_metrics.csv"
 PREDICTIONS_PATH = "models/validation_predictions.csv"
 
 st.set_page_config(
-    page_title="Petrodollar AI — De-dollarization Intelligence",
+    page_title="Petrodollar & De-dollarization",
     page_icon="💵",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -210,7 +210,7 @@ st.markdown(
     """
 <div class="hero">
   <div class="eyebrow">GLOBAL ENERGY • CURRENCY • ANALYTICS</div>
-  <div class="hero-title">💵 Petrodollar AI — De-dollarization Intelligence</div>
+  <div class="hero-title">💵 Petrodollar & De-dollarization</div>
   <div class="hero-subtitle">Track the analytical index, inspect model drivers, validate historical performance, and explore scenario horizons.</div>
 </div>
 """,
