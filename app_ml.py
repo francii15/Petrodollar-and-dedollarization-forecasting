@@ -43,7 +43,9 @@ st.markdown(
     var(--bg);
 }
 
-.block-container { padding-top: 1.35rem; padding-bottom: 1rem; max-width: 1500px; }
+.block-container { padding-top: 3.25rem; padding-bottom: 1.5rem; max-width: 1500px; }
+[data-testid="stHeader"] { background: rgba(7,16,29,.96); }
+[data-testid="stAppViewContainer"] > .main { overflow-x: hidden; }
 [data-testid="stSidebar"] { background: linear-gradient(180deg,#091423 0%,#0b1625 100%); border-right:1px solid #152a41; }
 [data-testid="stSidebar"] * { color:#eaf1fa; }
 
@@ -57,7 +59,7 @@ st.markdown(
     radial-gradient(circle at 90% 0%, rgba(54,185,255,.22), transparent 32%);
   box-shadow: 0 14px 40px rgba(0,0,0,.20);
 }
-.hero-title { font-size:2.35rem; font-weight:800; letter-spacing:-.035em; line-height:1.05; margin:0; }
+.hero-title { font-size:clamp(1.65rem, 3.1vw, 2.55rem); font-weight:800; letter-spacing:-.035em; line-height:1.12; margin:0; white-space:normal; overflow-wrap:anywhere; word-break:normal; max-width:100%; }
 .hero-subtitle { color:#9db1c8; margin:.35rem 0 0; font-size:.98rem; }
 .eyebrow { color:#5fc5ff; font-size:.74rem; font-weight:800; text-transform:uppercase; letter-spacing:.12em; margin-bottom:.35rem; }
 
@@ -229,12 +231,15 @@ for h in horizons:
     val = forecasts[h][0]
     kpi_specs.append((f"{h}M scenario", f"{val:.2f}", f"{val-latest_index:+.2f} vs latest", "purple" if h == 36 else "amber" if h >= 24 else "blue"))
 
-cols = st.columns(6)
-for col, (label, value, delta, tone) in zip(cols, kpi_specs):
-    col.markdown(
-        f'<div class="kpi {tone}"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div><div class="kpi-delta">{delta}</div></div>',
-        unsafe_allow_html=True,
-    )
+# Three cards per row keeps the KPI strip readable on laptop and mobile widths.
+for start in range(0, len(kpi_specs), 3):
+    row_specs = kpi_specs[start:start + 3]
+    cols = st.columns(3)
+    for col, (label, value, delta, tone) in zip(cols, row_specs):
+        col.markdown(
+            f'<div class="kpi {tone}"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div><div class="kpi-delta">{delta}</div></div>',
+            unsafe_allow_html=True,
+        )
 
 st.write("")
 
@@ -246,11 +251,25 @@ executive_tab, forecast_tab, validation_tab, drivers_tab, methodology_tab = st.t
 )
 
 
+def chart_records(df):
+    """Convert DataFrame records to JSON-safe native Python values for Vega-Lite."""
+    safe = df.copy()
+    for col in safe.columns:
+        if pd.api.types.is_datetime64_any_dtype(safe[col]):
+            safe[col] = safe[col].dt.strftime("%Y-%m-%dT%H:%M:%S")
+        elif safe[col].dtype == "object":
+            safe[col] = safe[col].map(
+                lambda v: v.isoformat() if isinstance(v, (pd.Timestamp, np.datetime64)) else v
+            )
+    return safe.to_dict("records")
+
+
 def history_chart_df(df):
     return df[["date", "dedollarization_index"]].rename(columns={"date": "Date", "dedollarization_index": "Index"})
 
 
 def render_history_forecast_chart(df, horizon, include_all_scenarios=False):
+    f, trend_component, residual, u, fd = forecasts[horizon]
     hist = history_chart_df(df)
     rows = []
     for h in horizons:
@@ -268,14 +287,14 @@ def render_history_forecast_chart(df, horizon, include_all_scenarios=False):
             "tooltip": [{"field": "Date", "type": "temporal", "title": "Date"}, {"field": "Index", "type": "quantitative", "format": ".2f"}],
         },
     }
-    layers.append({"data": {"values": hist.to_dict("records")}, **hist_line})
+    layers.append({"data": {"values": chart_records(hist)}, **hist_line})
 
     if show_trend:
-        trend_dates = pd.date_range(latest_date, future_date, periods=50)
-        trend_vals = np.linspace(latest_index, forecasts[horizon][1], len(trend_dates))
+        trend_dates = pd.date_range(latest_date, fd, periods=50)
+        trend_vals = np.linspace(latest_index, trend_component, len(trend_dates))
         trend_df = pd.DataFrame({"Date": trend_dates, "Index": trend_vals})
         layers.append({
-            "data": {"values": trend_df.to_dict("records")},
+            "data": {"values": chart_records(trend_df)},
             "mark": {"type": "line", "strokeDash": [7, 5], "color": "#ffbf5b", "strokeWidth": 2},
             "encoding": {"x": {"field": "Date", "type": "temporal"}, "y": {"field": "Index", "type": "quantitative"},
                          "tooltip": [{"field": "Index", "type": "quantitative", "format": ".2f"}]},
@@ -284,7 +303,7 @@ def render_history_forecast_chart(df, horizon, include_all_scenarios=False):
     f, _, _, u, fd = forecasts[horizon]
     bridge = pd.DataFrame({"Date": [latest_date, fd], "Index": [latest_index, f]})
     layers.append({
-        "data": {"values": bridge.to_dict("records")},
+        "data": {"values": chart_records(bridge)},
         "mark": {"type": "line", "strokeDash": [3, 4], "color": "#8b6cff", "strokeWidth": 3},
         "encoding": {"x": {"field": "Date", "type": "temporal"}, "y": {"field": "Index", "type": "quantitative"}},
     })
@@ -295,14 +314,14 @@ def render_history_forecast_chart(df, horizon, include_all_scenarios=False):
         center = np.linspace(latest_index, f, len(band_dates))
         band = pd.DataFrame({"Date": band_dates, "lower": center - u * progress, "upper": center + u * progress})
         layers.insert(1, {
-            "data": {"values": band.to_dict("records")},
+            "data": {"values": chart_records(band)},
             "mark": {"type": "area", "color": "#7e6cff", "opacity": 0.12},
             "encoding": {"x": {"field": "Date", "type": "temporal"}, "y": {"field": "lower", "type": "quantitative"}, "y2": {"field": "upper"}},
         })
 
     point = pd.DataFrame({"Date": [fd], "Index": [f], "Scenario": [f"{horizon}-month scenario"]})
     layers.append({
-        "data": {"values": point.to_dict("records")},
+        "data": {"values": chart_records(point)},
         "mark": {"type": "point", "filled": True, "size": 170, "color": "#29d391", "stroke": "#ffffff", "strokeWidth": 1.5},
         "encoding": {"x": {"field": "Date", "type": "temporal"}, "y": {"field": "Index", "type": "quantitative"},
                      "tooltip": [{"field": "Scenario"}, {"field": "Date", "type": "temporal"}, {"field": "Index", "type": "quantitative", "format": ".2f"}]},
@@ -407,7 +426,7 @@ with validation_tab:
         actual = alt = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "width": "container", "height": 390, "background": "transparent",
-            "data": {"values": long_df.to_dict("records")},
+            "data": {"values": chart_records(long_df)},
             "mark": {"type": "line", "point": {"filled": True, "size": 28}, "strokeWidth": 2.5},
             "encoding": {
                 "x": {"field": "Forecast Date", "type": "temporal", "axis": {"title": None, "labelColor": "#8ea4bc", "gridColor": "#18304a"}},
@@ -424,7 +443,7 @@ with validation_tab:
             hist_spec = {
                 "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
                 "width": "container", "height": 300, "background": "transparent",
-                "data": {"values": residual_df[["Residual"]].to_dict("records")},
+                "data": {"values": chart_records(residual_df[["Residual"]])},
                 "mark": {"type": "bar", "color": "#36b9ff", "opacity": .78},
                 "encoding": {"x": {"field": "Residual", "bin": {"maxbins": 18}, "axis": {"labelColor": "#8ea4bc"}}, "y": {"aggregate": "count", "axis": {"title": "Count", "labelColor": "#8ea4bc", "gridColor": "#18304a"}}, "tooltip": [{"aggregate": "count", "type": "quantitative", "title": "Observations"}]},
                 "config": {"view": {"stroke": "#1a344e"}},
@@ -456,7 +475,7 @@ with drivers_tab:
         bar_df = driver_df.sort_values("Index contribution")
         driver_spec = {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json", "width": "container", "height": 300, "background": "transparent",
-            "data": {"values": bar_df[["Feature", "Index contribution"]].to_dict("records")},
+            "data": {"values": chart_records(bar_df[["Feature", "Index contribution"]])},
             "mark": {"type": "bar", "cornerRadiusEnd": 5},
             "encoding": {"y": {"field": "Feature", "type": "nominal", "sort": None, "axis": {"labelColor": "#aabbd0"}}, "x": {"field": "Index contribution", "type": "quantitative", "axis": {"title": "Contribution", "labelColor": "#8ea4bc", "gridColor": "#18304a"}}, "color": {"condition": {"test": "datum['Index contribution'] >= 0", "value": "#29d391"}, "value": "#ff6b7a"}, "tooltip": [{"field": "Feature"}, {"field": "Index contribution", "type": "quantitative", "format": ".4f"}]},
             "config": {"view": {"stroke": "#1a344e"}},
